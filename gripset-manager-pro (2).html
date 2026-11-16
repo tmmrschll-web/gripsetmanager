@@ -1,0 +1,1374 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GripSet Manager PRO</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<style>
+body { background: #0f172a; color: #e2e8f0; }
+.card { background: #1e293b; border-radius: 16px; }
+.tab { cursor: pointer; padding: 0.75rem 1.4rem; border-radius: 10px; font-weight: 500; }
+.tab.active { background: #3b82f6; }
+.timeline-item { border-left: 3px solid #3b82f6; padding: 1rem 1.25rem; margin-bottom: 0.75rem; background: #1e293b; border-radius: 0 12px 12px 0; }
+.section-title { font-size: 0.8rem; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.75rem; }
+.truck-visual { background: linear-gradient(135deg, #1e3a8a, #1e40af); border-radius: 16px; min-height: 180px; position: relative; cursor: pointer; }
+.bottom-note { position: fixed; bottom: 20px; right: 20px; z-index: 50; }
+.danger-row { background: rgba(239, 68, 68, 0.08); }
+.conflict { background: rgba(239, 68, 68, 0.15); border-left: 4px solid #ef4444; }
+</style>
+</head>
+<body class="min-h-screen pb-16">
+<div class="container mx-auto px-4 py-8 max-w-7xl">
+  <header class="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+    <div>
+      <h1 class="text-3xl md:text-4xl font-bold flex items-center gap-3">
+        <i class="fas fa-grip-lines text-blue-400"></i> GripSet Manager <span class="text-blue-400 text-2xl">PRO</span>
+      </h1>
+      <p class="text-slate-400 mt-1" id="headerSubtitle">Projekte</p>
+    </div>
+    <div class="flex items-center gap-4">
+      <div class="text-sm text-slate-400">
+        <span id="userNameDisplay">Nicht angemeldet</span>
+        <span id="userRoleDisplay" class="ml-2 text-xs bg-slate-700 px-2 py-0.5 rounded"></span>
+        <button onclick="showLogin()" class="ml-2 text-blue-400 hover:underline text-sm">Login</button>
+      </div>
+      <div id="projectHeaderActions" class="hidden flex gap-3">
+        <button onclick="showProjectList()" class="bg-slate-700 px-5 py-2.5 rounded-lg text-sm">Alle Projekte</button>
+        <button onclick="editCurrentProject()" class="bg-slate-700 px-5 py-2.5 rounded-lg text-sm">Einstellungen</button>
+      </div>
+    </div>
+  </header>
+
+  <div id="projectListView">
+    <div class="flex justify-between items-center mb-8">
+      <h2 class="text-2xl font-bold">Projekte</h2>
+      <div class="flex gap-3">
+        <button onclick="importProject()" class="bg-slate-600 px-5 py-2.5 rounded-lg text-sm">Import</button>
+        <button onclick="showProjectModal()" class="bg-blue-600 px-5 py-2.5 rounded-lg">+ Projekt</button>
+      </div>
+    </div>
+    <div id="projectsList" class="grid md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+  </div>
+
+  <div id="workspace" class="hidden">
+    <div class="mb-8 card p-6" id="projectHeaderCard">
+      <div class="flex flex-col md:flex-row justify-between gap-6">
+        <div>
+          <div class="text-2xl font-bold" id="currentProjectName"></div>
+          <div class="text-slate-400 mt-1" id="currentProjectMeta"></div>
+        </div>
+        <div class="text-sm text-right" id="currentProjectDetails"></div>
+      </div>
+    </div>
+
+    <div class="flex flex-wrap gap-2 mb-8 bg-slate-800/60 p-2 rounded-xl">
+      <button class="tab active" onclick="switchTab('dashboard')">Übersicht</button>
+      <button class="tab" onclick="switchTab('inventory')">Inventar</button>
+      <button class="tab" onclick="switchTab('people')">Personen</button>
+      <button class="tab" onclick="switchTab('rigs')">Rigs</button>
+      <button class="tab" onclick="switchTab('schedule')">Tagesablauf</button>
+      <button class="tab" onclick="switchTab('vehicles')">Fahrzeuge</button>
+    </div>
+
+    <div id="tab-dashboard" class="tab-content">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-5 mb-8" id="stats"></div>
+      <div class="card p-6 mb-8">
+        <div class="section-title">Schnellsuche</div>
+        <input id="globalSearch" placeholder="Suche..." class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-3" oninput="renderGlobalSearch()">
+        <div id="globalSearchResults" class="mt-3 text-sm space-y-1"></div>
+      </div>
+      <div class="card p-6 mb-8 border-l-4 border-red-500">
+        <div class="section-title">Gefährdungsbeurteilung Status</div>
+        <div id="gbOverview" class="text-sm"></div>
+      </div>
+      <div class="card p-6 mb-8 border-l-4 border-amber-500">
+        <div class="section-title">Abhol-Liste</div>
+        <div id="pickupList" class="text-sm"></div>
+      </div>
+      <div class="card p-6 mb-8 border-l-4 border-purple-500">
+        <div class="section-title">Konflikte</div>
+        <div id="conflictList" class="text-sm"></div>
+      </div>
+      <div class="card p-6">
+        <div class="section-title">Schnellaktionen</div>
+        <div class="flex flex-wrap gap-3">
+          <button onclick="switchTab('inventory'); showAddModal()" class="bg-cyan-600 px-5 py-2.5 rounded-lg">+ Item</button>
+          <button onclick="switchTab('people'); showPersonModal()" class="bg-emerald-600 px-5 py-2.5 rounded-lg">+ Person</button>
+          <button onclick="switchTab('rigs'); showRigModal()" class="bg-purple-600 px-5 py-2.5 rounded-lg">+ Rig</button>
+          <button onclick="switchTab('schedule'); showDayModal()" class="bg-amber-600 px-5 py-2.5 rounded-lg">+ Tag</button>
+          <button onclick="switchTab('vehicles'); showVehicleModal()" class="bg-sky-600 px-5 py-2.5 rounded-lg">+ Fahrzeug</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="tab-inventory" class="tab-content hidden">
+      <div class="flex justify-between items-center mb-6">
+        <h2 class="text-2xl font-bold text-cyan-400">Inventar</h2>
+        <div class="flex gap-3">
+          <button onclick="showCategoryModal()" class="bg-slate-600 px-5 py-2.5 rounded-lg text-sm">Kategorien</button>
+          <button onclick="exportCSV('inventory')" class="bg-emerald-600 px-5 py-2.5 rounded-lg text-sm">CSV</button>
+          <button onclick="showAddModal()" class="bg-cyan-600 px-5 py-2.5 rounded-lg text-sm">+ Item</button>
+        </div>
+      </div>
+      <div class="card p-5 mb-6">
+        <input id="search" placeholder="Suche..." class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-3" oninput="renderTable()">
+      </div>
+      <div class="card overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead class="bg-slate-800"><tr>
+            <th class="px-5 py-4 text-left">Name</th><th class="px-5 py-4 text-left">Kategorie</th>
+            <th class="px-5 py-4 text-center">Menge</th><th class="px-5 py-4 text-left">Gewicht</th>
+            <th class="px-5 py-4 text-left">Standort</th><th class="px-5 py-4 text-left">Fahrzeug</th>
+            <th class="px-5 py-4 text-center">Strom</th><th class="px-5 py-4 text-center">GB</th>
+            <th class="px-5 py-4 text-center">Aktionen</th>
+          </tr></thead>
+          <tbody id="inventoryTable" class="divide-y divide-slate-700"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="tab-people" class="tab-content hidden">
+      <div class="flex justify-between items-center mb-6">
+        <h2 class="text-2xl font-bold text-emerald-400">Personen</h2>
+        <div class="flex gap-3">
+          <button onclick="exportCSV('people')" class="bg-emerald-600 px-5 py-2.5 rounded-lg text-sm">CSV</button>
+          <button onclick="showPersonModal()" class="bg-emerald-600 px-5 py-2.5 rounded-lg">+ Person</button>
+        </div>
+      </div>
+      <div id="peopleList" class="grid md:grid-cols-2 lg:grid-cols-3 gap-5"></div>
+    </div>
+
+    <div id="tab-rigs" class="tab-content hidden">
+      <div class="flex justify-between items-center mb-6">
+        <h2 class="text-2xl font-bold text-purple-400">Rigs</h2>
+        <div class="flex gap-3">
+          <button onclick="showRigTemplates()" class="bg-slate-600 px-5 py-2.5 rounded-lg text-sm">Vorlagen</button>
+          <button onclick="exportCSV('rigs')" class="bg-emerald-600 px-5 py-2.5 rounded-lg text-sm">CSV</button>
+          <button onclick="showRigModal()" class="bg-purple-600 px-5 py-2.5 rounded-lg">+ Rig</button>
+        </div>
+      </div>
+      <div id="rigsList" class="grid gap-6"></div>
+    </div>
+
+    <div id="tab-schedule" class="tab-content hidden">
+      <div class="flex justify-between items-center mb-6">
+        <h2 class="text-2xl font-bold text-amber-400">Tagesabläufe</h2>
+        <div class="flex gap-3">
+          <button onclick="exportCSV('days')" class="bg-emerald-600 px-5 py-2.5 rounded-lg text-sm">CSV</button>
+          <button onclick="showDayModal()" class="bg-amber-600 px-5 py-2.5 rounded-lg">+ Tag</button>
+        </div>
+      </div>
+      <div id="daysList" class="grid gap-8"></div>
+    </div>
+
+    <div id="tab-vehicles" class="tab-content hidden">
+      <div class="flex justify-between items-center mb-6">
+        <h2 class="text-2xl font-bold text-sky-400">Fahrzeuge</h2>
+        <div class="flex gap-3">
+          <button onclick="exportCSV('vehicles')" class="bg-emerald-600 px-5 py-2.5 rounded-lg text-sm">CSV</button>
+          <button onclick="showVehicleModal()" class="bg-sky-600 px-5 py-2.5 rounded-lg">+ Fahrzeug</button>
+        </div>
+      </div>
+      <div id="vehiclesList" class="grid md:grid-cols-2 gap-6"></div>
+    </div>
+  </div>
+</div>
+
+<div class="bottom-note">
+  <button onclick="toggleNote()" class="bg-slate-700 hover:bg-slate-600 px-4 py-3 rounded-full shadow-lg text-sm">
+    <i class="fas fa-sticky-note"></i> Notiz
+  </button>
+  <div id="notePanel" class="hidden absolute bottom-14 right-0 card p-4 w-80 shadow-xl">
+    <textarea id="projectNoteField" placeholder="Schnellnotiz..." rows="4" class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm" onchange="saveProjectNote()"></textarea>
+  </div>
+</div>
+
+<!-- Login Modal -->
+<div id="loginModal" class="fixed inset-0 bg-black/70 hidden items-center justify-center z-50 p-4">
+  <div class="card w-full max-w-sm p-6">
+    <h3 class="text-xl font-bold mb-4">Anmeldung</h3>
+    <input id="loginName" placeholder="Vorname Nachname" class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-3 mb-3">
+    <select id="loginRole" class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-3 mb-4">
+      <option value="keygrip">Key Grip (voller Zugriff)</option>
+      <option value="grip">Grip (eingeschränkt)</option>
+      <option value="viewer">Nur Ansicht</option>
+    </select>
+    <div class="flex justify-end gap-3">
+      <button onclick="closeModal('loginModal')" class="px-4 py-2 bg-slate-700 rounded-lg">Abbrechen</button>
+      <button onclick="doLogin()" class="bg-blue-600 px-4 py-2 rounded-lg">Anmelden</button>
+    </div>
+  </div>
+</div>
+
+<!-- Project Modal -->
+<div id="projectModal" class="fixed inset-0 bg-black/70 hidden items-center justify-center z-50 p-4">
+  <div class="card w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+    <h3 class="text-xl font-bold mb-6">Projekt-Einstellungen</h3>
+    <form onsubmit="saveProject(event)">
+      <input type="hidden" id="projectId">
+      <div class="space-y-4">
+        <input id="projectName" required placeholder="Projektname" class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-3">
+        <input id="projectDrehtage" placeholder="Drehtage" class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-3">
+        <input id="projectDop" placeholder="DOP" class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-3">
+        <input id="projectRegie" placeholder="Regie" class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-3">
+        <input id="projectLicht" placeholder="Licht" class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-3">
+        <input id="projectBudget" placeholder="Budget" class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-3">
+        <div>
+          <label class="text-sm text-slate-400">Farbe</label>
+          <input id="projectColor" type="color" value="#3b82f6" class="w-full h-12 bg-slate-800 border border-slate-600 rounded-lg mt-1">
+        </div>
+        <textarea id="projectNotes" placeholder="Notizen" rows="3" class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-3"></textarea>
+        <div class="pt-3 border-t border-slate-700">
+          <button type="button" onclick="showDamageModal()" class="text-amber-400 text-sm">Schadensmeldungen anzeigen / neu</button>
+        </div>
+      </div>
+      <div class="flex justify-between items-center mt-6">
+        <div class="flex gap-3">
+          <button type="button" id="deleteProjectBtn" onclick="deleteCurrentProject()" class="text-red-500 text-sm hidden">Projekt löschen</button>
+          <button type="button" onclick="exportCurrentProject()" class="text-emerald-400 text-sm">Export JSON</button>
+        </div>
+        <div class="flex gap-3">
+          <button type="button" onclick="closeModal('projectModal')" class="px-5 py-2.5 bg-slate-700 rounded-lg">Abbrechen</button>
+          <button type="submit" class="bg-blue-600 px-5 py-2.5 rounded-lg">Speichern</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Damage Modal -->
+<div id="damageModal" class="fixed inset-0 bg-black/70 hidden items-center justify-center z-50 p-4">
+  <div class="card w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+    <h3 class="text-xl font-bold mb-5">Schadensmeldungen</h3>
+    <div id="damageList" class="space-y-3 mb-4 max-h-64 overflow-y-auto"></div>
+    <div class="space-y-3 border-t border-slate-700 pt-4">
+      <input id="damageItem" placeholder="Item / Gerät" class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2">
+      <textarea id="damageDesc" placeholder="Beschreibung des Schadens" rows="2" class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2"></textarea>
+      <input id="damageDate" type="date" class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2">
+      <button onclick="addDamage()" class="bg-amber-600 px-4 py-2 rounded-lg text-sm">Meldung hinzufügen</button>
+    </div>
+    <div class="flex justify-end mt-4">
+      <button onclick="closeModal('damageModal')" class="px-4 py-2 bg-slate-700 rounded-lg">Schließen</button>
+    </div>
+  </div>
+</div>
+
+<!-- Item Modal -->
+<div id="itemModal" class="fixed inset-0 bg-black/70 hidden items-center justify-center z-50 p-4">
+  <div class="card w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto">
+    <h3 class="text-xl font-bold mb-6">Item</h3>
+    <form id="itemForm" onsubmit="saveItem(event)">
+      <input type="hidden" id="itemId">
+      <div class="space-y-5">
+        <input id="itemName" required placeholder="Name" class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-3">
+        <div class="grid md:grid-cols-2 gap-4">
+          <select id="itemCategory" required class="bg-slate-800 border border-slate-600 rounded-lg px-4 py-3"></select>
+          <input id="itemQty" type="number" min="1" value="1" class="bg-slate-800 border border-slate-600 rounded-lg px-4 py-3">
+        </div>
+        <div class="grid md:grid-cols-2 gap-4">
+          <input id="itemWeight" type="number" step="0.1" placeholder="Gewicht (kg)" class="bg-slate-800 border border-slate-600 rounded-lg px-4 py-3">
+          <input id="itemColor" type="color" value="#64748b" class="h-12 bg-slate-800 border border-slate-600 rounded-lg">
+        </div>
+        <div class="grid md:grid-cols-2 gap-4">
+          <input id="itemCurrentLocation" placeholder="Aktueller Standort" class="bg-slate-800 border border-slate-600 rounded-lg px-4 py-3">
+          <input id="itemCase" placeholder="Case" class="bg-slate-800 border border-slate-600 rounded-lg px-4 py-3">
+        </div>
+        <select id="itemVehicle" class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-3">
+          <option value="">Kein Fahrzeug</option>
+        </select>
+        <div class="grid md:grid-cols-2 gap-4">
+          <input id="itemDailyRate" type="number" step="0.01" placeholder="Tagessatz €" class="bg-slate-800 border border-slate-600 rounded-lg px-4 py-3">
+          <input id="itemPhoto" type="url" placeholder="Foto-URL (optional)" class="bg-slate-800 border border-slate-600 rounded-lg px-4 py-3">
+        </div>
+        <div>
+          <div class="flex items-center gap-3 mb-2">
+            <input type="checkbox" id="itemNeedsPower" class="w-4 h-4" onchange="togglePowerFields()">
+            <label>Benötigt Strom?</label>
+          </div>
+          <div id="powerFields" class="hidden grid md:grid-cols-2 gap-4">
+            <input id="itemPowerWatt" type="number" placeholder="Watt" class="bg-slate-800 border border-slate-600 rounded-lg px-4 py-3">
+            <select id="itemPowerType" class="bg-slate-800 border border-slate-600 rounded-lg px-4 py-3">
+              <option value="stecker">Stecker</option>
+              <option value="akku">Akku</option>
+            </select>
+          </div>
+        </div>
+        <div class="flex items-center gap-3">
+          <input type="checkbox" id="itemRiskAssessment" class="w-4 h-4">
+          <label>Gefährdungsbeurteilung liegt vor</label>
+        </div>
+        <textarea id="itemNotes" placeholder="Notizen" rows="2" class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-3"></textarea>
+      </div>
+      <div class="flex justify-between items-center mt-6">
+        <button type="button" id="deleteItemBtn" onclick="deleteItemFromModal()" class="text-red-500 text-sm hidden">Löschen</button>
+        <div class="flex gap-3">
+          <button type="button" onclick="closeModal('itemModal')" class="px-5 py-2.5 bg-slate-700 rounded-lg">Abbrechen</button>
+          <button type="submit" class="bg-cyan-600 px-5 py-2.5 rounded-lg">Speichern</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Person Modal -->
+<div id="personModal" class="fixed inset-0 bg-black/70 hidden items-center justify-center z-50 p-4">
+  <div class="card w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+    <h3 class="text-xl font-bold mb-6">Person</h3>
+    <form onsubmit="savePerson(event)">
+      <input type="hidden" id="personId">
+      <div class="space-y-4">
+        <input id="personName" required placeholder="Name" class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-3">
+        <input id="personRole" placeholder="Rolle" class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-3">
+        <input id="personPhone" placeholder="Telefon" class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-3">
+        <input id="personAddress" placeholder="Wohnort" class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-3">
+        <div class="flex items-center gap-3">
+          <input type="checkbox" id="personLicense" class="w-4 h-4">
+          <label>Führerschein</label>
+        </div>
+        <input id="personLicenseClass" placeholder="Klasse" class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-3">
+        <input id="personPickup" placeholder="Abholpunkt" class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-3">
+        <textarea id="personNotes" placeholder="Notizen" rows="2" class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-3"></textarea>
+      </div>
+      <div class="flex justify-between items-center mt-6">
+        <button type="button" id="deletePersonBtn" onclick="deletePersonFromModal()" class="text-red-500 text-sm hidden">Löschen</button>
+        <div class="flex gap-3">
+          <button type="button" onclick="closeModal('personModal')" class="px-5 py-2.5 bg-slate-700 rounded-lg">Abbrechen</button>
+          <button type="submit" class="bg-emerald-600 px-5 py-2.5 rounded-lg">Speichern</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Rig Modal -->
+<div id="rigModal" class="fixed inset-0 bg-black/70 hidden items-center justify-center z-50 p-4">
+  <div class="card w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto">
+    <h3 class="text-xl font-bold mb-6">Rig</h3>
+    <form onsubmit="saveRig(event)">
+      <input type="hidden" id="rigId">
+      <div class="space-y-4">
+        <input id="rigName" required placeholder="Rig-Name" class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-3">
+        <textarea id="rigNotes" placeholder="Beschreibung" rows="2" class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-3"></textarea>
+        <div class="grid md:grid-cols-2 gap-4">
+          <input id="rigScene" placeholder="Scene / Shot" class="bg-slate-800 border border-slate-600 rounded-lg px-4 py-3">
+          <input id="rigWhen" placeholder="Wann benötigt" class="bg-slate-800 border border-slate-600 rounded-lg px-4 py-3">
+        </div>
+        <div class="grid md:grid-cols-2 gap-4">
+          <select id="rigResponsible" class="bg-slate-800 border border-slate-600 rounded-lg px-4 py-3"><option value="">Zuständig</option></select>
+          <select id="rigPriority" class="bg-slate-800 border border-slate-600 rounded-lg px-4 py-3">
+            <option value="medium">Mittel</option>
+            <option value="high">Hoch</option>
+            <option value="low">Niedrig</option>
+          </select>
+        </div>
+        <input id="rigSetupTime" type="number" placeholder="Aufbauzeit (Min)" class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-3">
+        <div class="flex items-center gap-3">
+          <input type="checkbox" id="rigRiskAssessment" class="w-4 h-4">
+          <label>Gefährdungsbeurteilung vorhanden</label>
+        </div>
+        <textarea id="rigPlan" placeholder="Rig-Plan" rows="3" class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-3"></textarea>
+        <div>
+          <div class="section-title">Items</div>
+          <div id="rigItemSelector" class="max-h-48 overflow-y-auto border border-slate-600 rounded-lg p-3 space-y-1"></div>
+        </div>
+        <button type="button" onclick="saveAsTemplate()" class="text-sm text-purple-400">Als Vorlage speichern</button>
+      </div>
+      <div class="flex justify-between items-center mt-6">
+        <button type="button" id="deleteRigBtn" onclick="deleteRigFromModal()" class="text-red-500 text-sm hidden">Löschen</button>
+        <div class="flex gap-3">
+          <button type="button" onclick="closeModal('rigModal')" class="px-5 py-2.5 bg-slate-700 rounded-lg">Abbrechen</button>
+          <button type="submit" class="bg-purple-600 px-5 py-2.5 rounded-lg">Speichern</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Day Modal -->
+<div id="dayModal" class="fixed inset-0 bg-black/70 hidden items-center justify-center z-50 p-4">
+  <div class="card w-full max-w-3xl p-6 max-h-[90vh] overflow-y-auto">
+    <h3 class="text-xl font-bold mb-6">Tagesablauf</h3>
+    <form onsubmit="saveDay(event)">
+      <input type="hidden" id="dayId">
+      <div class="space-y-4">
+        <div class="grid md:grid-cols-2 gap-4">
+          <input id="dayName" required placeholder="Titel" class="bg-slate-800 border border-slate-600 rounded-lg px-4 py-3">
+          <input id="dayDate" type="date" class="bg-slate-800 border border-slate-600 rounded-lg px-4 py-3">
+        </div>
+        <input id="dayLocation" placeholder="Location / Adresse" class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-3">
+        <div class="grid grid-cols-2 gap-4">
+          <input id="dayCall" type="time" class="bg-slate-800 border border-slate-600 rounded-lg px-4 py-3">
+          <input id="dayAnfahrtTime" type="time" class="bg-slate-800 border border-slate-600 rounded-lg px-4 py-3">
+        </div>
+        <input id="dayTravel" placeholder="Anfahrt-Notiz / Fahrtzeit" class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-3">
+        <input id="dayWeather" placeholder="Wetter-Hinweis" class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-3">
+        <textarea id="dayNotes" placeholder="Notizen" rows="2" class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-3"></textarea>
+        <div>
+          <div class="section-title">Stab</div>
+          <div id="dayCrewSelector" class="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto border border-slate-600 rounded-lg p-3"></div>
+        </div>
+        <div>
+          <div class="section-title">Fahrzeuge</div>
+          <div id="dayVehicles" class="space-y-2"></div>
+          <button type="button" onclick="addVehicleField()" class="text-sm text-blue-400 mt-2">+ Fahrzeug</button>
+        </div>
+        <div>
+          <div class="section-title">Timeline</div>
+          <div id="dayTimeline" class="space-y-2"></div>
+          <button type="button" onclick="addTimelineItem()" class="text-sm text-blue-400 mt-2">+ Eintrag</button>
+        </div>
+      </div>
+      <div class="flex justify-between items-center mt-6">
+        <button type="button" id="deleteDayBtn" onclick="deleteDayFromModal()" class="text-red-500 text-sm hidden">Löschen</button>
+        <div class="flex gap-3">
+          <button type="button" onclick="closeModal('dayModal')" class="px-5 py-2.5 bg-slate-700 rounded-lg">Abbrechen</button>
+          <button type="submit" class="bg-amber-600 px-5 py-2.5 rounded-lg">Speichern</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Vehicle Modal -->
+<div id="vehicleModal" class="fixed inset-0 bg-black/70 hidden items-center justify-center z-50 p-4">
+  <div class="card w-full max-w-lg p-6">
+    <h3 class="text-xl font-bold mb-5">Fahrzeug</h3>
+    <form onsubmit="saveVehicle(event)">
+      <input type="hidden" id="vehicleId">
+      <input id="vehicleName" required placeholder="Name" class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-3 mb-3">
+      <input id="vehicleType" placeholder="Typ" class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-3 mb-3">
+      <input id="vehicleDriver" placeholder="Fahrer" class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-3 mb-3">
+      <textarea id="vehicleNotes" placeholder="Notizen" rows="2" class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-3"></textarea>
+      <div class="flex justify-between items-center mt-5">
+        <button type="button" id="deleteVehicleBtn" onclick="deleteVehicleFromModal()" class="text-red-500 text-sm hidden">Löschen</button>
+        <div class="flex gap-3">
+          <button type="button" onclick="closeModal('vehicleModal')" class="px-4 py-2 bg-slate-700 rounded-lg">Abbrechen</button>
+          <button type="submit" class="bg-sky-600 px-4 py-2 rounded-lg">Speichern</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Category Modal -->
+<div id="categoryModal" class="fixed inset-0 bg-black/70 hidden items-center justify-center z-50 p-4">
+  <div class="card w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+    <h3 class="text-xl font-bold mb-5">Kategorien</h3>
+    <div id="categoryList" class="space-y-2 mb-4 max-h-64 overflow-y-auto"></div>
+    <div class="flex gap-2">
+      <input id="newCategoryName" placeholder="Neue Kategorie" class="flex-1 bg-slate-800 border border-slate-600 rounded-lg px-4 py-2">
+      <input id="newCategoryColor" type="color" value="#64748b" class="w-12 h-10 bg-slate-800 border border-slate-600 rounded-lg">
+      <button onclick="addCategory()" class="bg-cyan-600 px-4 py-2 rounded-lg">+</button>
+    </div>
+    <div class="flex justify-end mt-5">
+      <button onclick="closeModal('categoryModal')" class="px-4 py-2 bg-slate-700 rounded-lg">Schließen</button>
+    </div>
+  </div>
+</div>
+
+<!-- Rig Templates Modal -->
+<div id="rigTemplateModal" class="fixed inset-0 bg-black/70 hidden items-center justify-center z-50 p-4">
+  <div class="card w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+    <h3 class="text-xl font-bold mb-5">Rig-Vorlagen</h3>
+    <div id="rigTemplateList" class="space-y-2 mb-4"></div>
+    <div class="flex justify-end">
+      <button onclick="closeModal('rigTemplateModal')" class="px-4 py-2 bg-slate-700 rounded-lg">Schließen</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let projects = JSON.parse(localStorage.getItem("gripProjects")) || [];
+let categories = JSON.parse(localStorage.getItem("gripCategories")) || [
+  {name:"C-Stands", color:"#06b6d4"}, {name:"Combo Stands", color:"#0891b2"},
+  {name:"Flags & Rags", color:"#f59e0b"}, {name:"Silks & Diffusion", color:"#eab308"},
+  {name:"Sandbags", color:"#84cc16"}, {name:"Clamps & Hardware", color:"#6366f1"},
+  {name:"Apple Boxes", color:"#f97316"}, {name:"Dolly & Track", color:"#ec4899"},
+  {name:"Cranes & Jibs", color:"#a855f7"}, {name:"Speed Rail", color:"#64748b"},
+  {name:"Tools", color:"#14b8a6"}, {name:"Sonstiges", color:"#94a3b8"}
+];
+let rigTemplates = JSON.parse(localStorage.getItem("gripRigTemplates")) || [];
+let currentProjectId = null;
+let currentUser = localStorage.getItem("gripUser") || "";
+let currentRole = localStorage.getItem("gripRole") || "keygrip";
+
+function getCurrentProject() { return projects.find(p => p.id === currentProjectId); }
+function saveProjects() { localStorage.setItem("gripProjects", JSON.stringify(projects)); }
+function saveCategories() { localStorage.setItem("gripCategories", JSON.stringify(categories)); }
+function saveTemplates() { localStorage.setItem("gripRigTemplates", JSON.stringify(rigTemplates)); }
+
+function isKeyGrip() { return currentRole === "keygrip"; }
+function canEdit() { return currentRole === "keygrip" || currentRole === "grip"; }
+
+function init() {
+  if (currentUser) {
+    document.getElementById("userNameDisplay").textContent = currentUser;
+    document.getElementById("userRoleDisplay").textContent = currentRole === "keygrip" ? "Key Grip" : currentRole === "grip" ? "Grip" : "Ansicht";
+  }
+  if (projects.length === 0) {
+    projects = [{
+      id: Date.now(), name: "Beispielprojekt", drehtage: "12.–15.12.2026",
+      dop: "Max DOP", regie: "Lisa Regie", color: "#3b82f6", quickNote: "", damages: [],
+      inventory: [{id:1,name:"C-Stand 40\"",category:"C-Stands",qty:12,vehicle:"Sprinter 1",weight:8,riskAssessment:true,color:"#06b6d4",needsPower:false}],
+      people: [{id:1,name:"Max Müller",role:"Key Grip",pickup:"Berlin Hbf"}],
+      rigs: [], days: [], vehicles: [{id:1,name:"Sprinter 1",type:"Sprinter",driver:"Max"}]
+    }];
+    saveProjects();
+  }
+  populateCategorySelect();
+  renderProjectList();
+}
+
+function populateCategorySelect(selected = "") {
+  const sel = document.getElementById("itemCategory");
+  if (sel) sel.innerHTML = categories.map(c => `<option value="${c.name}" ${selected===c.name?"selected":""}>${c.name}</option>`).join("");
+}
+
+function renderProjectList() {
+  document.getElementById("projectsList").innerHTML = projects.map(p => `
+    <div class="card p-6 cursor-pointer hover:bg-slate-700/40" style="border-left: 4px solid ${p.color||'#3b82f6'}" onclick="openProject(${p.id})">
+      <div class="font-bold text-lg">${p.name}</div>
+      <div class="text-sm text-slate-400 mt-1">${p.drehtage || ""}</div>
+      <div class="text-xs text-slate-500 mt-3">${(p.inventory||[]).length} Items · ${(p.vehicles||[]).length} Fahrzeuge</div>
+    </div>`).join("") || "<p class='text-slate-400'>Keine Projekte.</p>";
+}
+
+function openProject(id) {
+  currentProjectId = id;
+  const p = getCurrentProject();
+  if (!p) return;
+  document.getElementById("projectListView").classList.add("hidden");
+  document.getElementById("workspace").classList.remove("hidden");
+  document.getElementById("projectHeaderActions").classList.remove("hidden");
+  document.getElementById("currentProjectName").textContent = p.name;
+  document.getElementById("currentProjectMeta").textContent = p.drehtage || "";
+  document.getElementById("currentProjectDetails").innerHTML = `DOP: ${p.dop||"–"} · Regie: ${p.regie||"–"}`;
+  document.getElementById("projectHeaderCard").style.borderLeft = `4px solid ${p.color||'#3b82f6'}`;
+  document.getElementById("headerSubtitle").textContent = p.name;
+  document.getElementById("projectNoteField").value = p.quickNote || "";
+  switchTab("dashboard");
+  renderAll();
+}
+
+function showProjectList() {
+  currentProjectId = null;
+  document.getElementById("workspace").classList.add("hidden");
+  document.getElementById("projectListView").classList.remove("hidden");
+  document.getElementById("projectHeaderActions").classList.add("hidden");
+  document.getElementById("headerSubtitle").textContent = "Projekte";
+  renderProjectList();
+}
+
+function showProjectModal() {
+  document.getElementById("projectId").value = "";
+  document.querySelector("#projectModal form").reset();
+  document.getElementById("deleteProjectBtn").classList.add("hidden");
+  openModal("projectModal");
+}
+
+function editCurrentProject() {
+  if (!isKeyGrip()) { alert("Nur Key Grip kann Projekteinstellungen ändern."); return; }
+  const p = getCurrentProject(); if (!p) return;
+  document.getElementById("projectId").value = p.id;
+  document.getElementById("projectName").value = p.name || "";
+  document.getElementById("projectDrehtage").value = p.drehtage || "";
+  document.getElementById("projectDop").value = p.dop || "";
+  document.getElementById("projectRegie").value = p.regie || "";
+  document.getElementById("projectLicht").value = p.licht || "";
+  document.getElementById("projectBudget").value = p.budget || "";
+  document.getElementById("projectColor").value = p.color || "#3b82f6";
+  document.getElementById("projectNotes").value = p.notes || "";
+  document.getElementById("deleteProjectBtn").classList.remove("hidden");
+  openModal("projectModal");
+}
+
+function saveProject(e) {
+  e.preventDefault();
+  if (!isKeyGrip()) { alert("Keine Berechtigung."); return; }
+  const id = document.getElementById("projectId").value;
+  const data = {
+    name: document.getElementById("projectName").value,
+    drehtage: document.getElementById("projectDrehtage").value,
+    dop: document.getElementById("projectDop").value,
+    regie: document.getElementById("projectRegie").value,
+    licht: document.getElementById("projectLicht").value,
+    budget: document.getElementById("projectBudget").value,
+    color: document.getElementById("projectColor").value,
+    notes: document.getElementById("projectNotes").value
+  };
+  if (id) {
+    const idx = projects.findIndex(p => p.id == id);
+    projects[idx] = { ...projects[idx], ...data };
+  } else {
+    projects.push({ id: Date.now(), ...data, inventory: [], people: [], rigs: [], days: [], vehicles: [], quickNote: "", damages: [] });
+  }
+  saveProjects();
+  closeModal("projectModal");
+  if (currentProjectId) openProject(currentProjectId);
+  else renderProjectList();
+}
+
+function deleteCurrentProject() {
+  if (!isKeyGrip()) return;
+  if (!confirm("Projekt löschen?")) return;
+  projects = projects.filter(p => p.id !== currentProjectId);
+  saveProjects();
+  closeModal("projectModal");
+  showProjectList();
+}
+
+function switchTab(tab) {
+  document.querySelectorAll(".tab-content").forEach(el => el.classList.add("hidden"));
+  document.querySelectorAll(".tab").forEach(el => el.classList.remove("active"));
+  document.getElementById("tab-"+tab).classList.remove("hidden");
+  if (event && event.target) event.target.classList.add("active");
+  renderAll();
+}
+
+function renderAll() {
+  const p = getCurrentProject(); if (!p) return;
+  renderStats(); renderTable(); renderPeople(); renderRigs(); renderDays(); renderVehicles();
+  renderDashboardExtras();
+}
+
+function renderStats() {
+  const p = getCurrentProject(); if (!p) return;
+  const total = (p.inventory||[]).reduce((s,i)=>s+(i.qty||1),0);
+  const rental = (p.inventory||[]).reduce((s,i) => s + ((i.dailyRate||0)*(i.qty||1)), 0);
+  const weight = (p.inventory||[]).reduce((s,i) => s + ((i.weight||0)*(i.qty||1)), 0);
+  document.getElementById("stats").innerHTML = `
+    <div class="card p-6 border-l-4 border-cyan-500"><div class="text-slate-400 text-sm">Items</div><div class="text-2xl font-bold">${total}</div></div>
+    <div class="card p-6 border-l-4 border-emerald-500"><div class="text-slate-400 text-sm">Personen</div><div class="text-2xl font-bold">${(p.people||[]).length}</div></div>
+    <div class="card p-6 border-l-4 border-purple-500"><div class="text-slate-400 text-sm">Rigs</div><div class="text-2xl font-bold">${(p.rigs||[]).length}</div></div>
+    <div class="card p-6 border-l-4 border-amber-500"><div class="text-slate-400 text-sm">Gewicht gesamt</div><div class="text-2xl font-bold">${weight.toFixed(0)} kg</div></div>`;
+}
+
+function renderDashboardExtras() {
+  const p = getCurrentProject(); if (!p) return;
+  renderGBOverview();
+  renderPickupList();
+  renderConflicts();
+}
+
+function renderGBOverview() {
+  const p = getCurrentProject(); if (!p) return;
+  const el = document.getElementById("gbOverview");
+  if (!el) return;
+  const missingItems = (p.inventory||[]).filter(i => !i.riskAssessment).length;
+  const missingRigs = (p.rigs||[]).filter(r => !r.riskAssessment).length;
+  el.innerHTML = `Items ohne GB: <strong class="${missingItems?'text-red-400':'text-emerald-400'}">${missingItems}</strong><br>Rigs ohne GB: <strong class="${missingRigs?'text-red-400':'text-emerald-400'}">${missingRigs}</strong>`;
+}
+
+function renderPickupList() {
+  const p = getCurrentProject(); if (!p) return;
+  const el = document.getElementById("pickupList");
+  if (!el) return;
+  const pickups = (p.people||[]).filter(person => person.pickup);
+  el.innerHTML = pickups.length ? pickups.map(person => `<div>${person.name} → ${person.pickup}</div>`).join("") : "<div class='text-slate-400'>Keine Abholungen</div>";
+}
+
+function renderConflicts() {
+  const p = getCurrentProject(); if (!p) return;
+  const el = document.getElementById("conflictList");
+  if (!el) return;
+  const usage = {};
+  (p.rigs||[]).forEach(r => (r.items||[]).forEach(id => { if (!usage[id]) usage[id]=[]; usage[id].push("Rig: "+r.name); }));
+  const conflicts = Object.keys(usage).filter(id => usage[id].length > 1);
+  el.innerHTML = conflicts.length ? conflicts.map(id => {
+    const name = (p.inventory||[]).find(i=>i.id==id)?.name || id;
+    return `<div class="text-red-400">${name} in ${usage[id].length} Rigs</div>`;
+  }).join("") : "<div class='text-emerald-400'>Keine Konflikte</div>";
+}
+
+function renderGlobalSearch() {
+  const p = getCurrentProject(); if (!p) return;
+  const q = (document.getElementById("globalSearch")?.value || "").toLowerCase();
+  const el = document.getElementById("globalSearchResults");
+  if (!el || !q) { if(el) el.innerHTML = ""; return; }
+  let results = [];
+  (p.inventory||[]).forEach(i => { if (i.name.toLowerCase().includes(q)) results.push("Item: " + i.name); });
+  (p.people||[]).forEach(i => { if (i.name.toLowerCase().includes(q)) results.push("Person: " + i.name); });
+  (p.rigs||[]).forEach(i => { if (i.name.toLowerCase().includes(q)) results.push("Rig: " + i.name); });
+  el.innerHTML = results.slice(0,8).map(r => `<div>${r}</div>`).join("") || "<div class='text-slate-400'>Nichts gefunden</div>";
+}
+
+function renderTable() {
+  const p = getCurrentProject(); if (!p) return;
+  const search = (document.getElementById("search")?.value||"").toLowerCase();
+  document.getElementById("inventoryTable").innerHTML = (p.inventory||[]).filter(i => !search || i.name.toLowerCase().includes(search)).map(item => {
+    const power = item.needsPower ? (item.powerWatt||"?") + "W " + (item.powerType||"") : "–";
+    return `<tr style="border-left:4px solid ${item.color||'#64748b'}" class="${!item.riskAssessment?'danger-row':''}">
+      <td class="px-5 py-4 font-medium">${item.name}${item.photo?` <a href="${item.photo}" target="_blank" class="text-blue-400 text-xs">Foto</a>`:""}</td>
+      <td class="px-5 py-4">${item.category||""}</td>
+      <td class="px-5 py-4 text-center">${item.qty||1}</td>
+      <td class="px-5 py-4 text-sm">${item.weight ? item.weight+" kg" : "–"}</td>
+      <td class="px-5 py-4 text-sm">${item.currentLocation||"–"}</td>
+      <td class="px-5 py-4 text-sm">${item.vehicle||"–"}</td>
+      <td class="px-5 py-4 text-center text-sm">${power}</td>
+      <td class="px-5 py-4 text-center">${item.riskAssessment?"✓":"–"}</td>
+      <td class="px-5 py-4 text-center">${canEdit()?`<button onclick="editItem(${item.id})" class="text-blue-400"><i class="fas fa-edit"></i></button>`:"–"}</td>
+    </tr>`;
+  }).join("");
+}
+
+function togglePowerFields() {
+  document.getElementById("powerFields").classList.toggle("hidden", !document.getElementById("itemNeedsPower").checked);
+}
+
+function populateVehicleSelect(selected="") {
+  const p = getCurrentProject();
+  const sel = document.getElementById("itemVehicle");
+  if (!sel) return;
+  sel.innerHTML = `<option value="">Kein Fahrzeug</option>` + ((p&&p.vehicles)?p.vehicles.map(v=>`<option value="${v.name}" ${selected===v.name?"selected":""}>${v.name}</option>`).join(""):"");
+}
+
+function showAddModal() {
+  if (!canEdit()) { alert("Keine Berechtigung."); return; }
+  document.getElementById("itemId").value="";
+  document.getElementById("itemForm").reset();
+  document.getElementById("deleteItemBtn").classList.add("hidden");
+  document.getElementById("powerFields").classList.add("hidden");
+  populateCategorySelect();
+  populateVehicleSelect();
+  openModal("itemModal");
+}
+function editItem(id) {
+  if (!canEdit()) return;
+  const p = getCurrentProject(); if (!p) return;
+  const i = (p.inventory||[]).find(x=>x.id===id); if(!i) return;
+  document.getElementById("itemId").value = id;
+  document.getElementById("itemName").value = i.name;
+  populateCategorySelect(i.category);
+  document.getElementById("itemQty").value = i.qty||1;
+  document.getElementById("itemWeight").value = i.weight||"";
+  document.getElementById("itemColor").value = i.color||"#64748b";
+  document.getElementById("itemCurrentLocation").value = i.currentLocation||"";
+  document.getElementById("itemCase").value = i.case||"";
+  populateVehicleSelect(i.vehicle||"");
+  document.getElementById("itemDailyRate").value = i.dailyRate||"";
+  document.getElementById("itemPhoto").value = i.photo||"";
+  document.getElementById("itemNeedsPower").checked = !!i.needsPower;
+  document.getElementById("itemPowerWatt").value = i.powerWatt||"";
+  document.getElementById("itemPowerType").value = i.powerType||"stecker";
+  document.getElementById("powerFields").classList.toggle("hidden", !i.needsPower);
+  document.getElementById("itemRiskAssessment").checked = !!i.riskAssessment;
+  document.getElementById("itemNotes").value = i.notes||"";
+  document.getElementById("deleteItemBtn").classList.remove("hidden");
+  openModal("itemModal");
+}
+function saveItem(e) {
+  e.preventDefault();
+  if (!canEdit()) return;
+  const p = getCurrentProject(); if (!p) return;
+  const id = document.getElementById("itemId").value;
+  const needsPower = document.getElementById("itemNeedsPower").checked;
+  const item = {
+    name: document.getElementById("itemName").value,
+    category: document.getElementById("itemCategory").value,
+    qty: +document.getElementById("itemQty").value||1,
+    weight: parseFloat(document.getElementById("itemWeight").value)||0,
+    color: document.getElementById("itemColor").value,
+    currentLocation: document.getElementById("itemCurrentLocation").value,
+    case: document.getElementById("itemCase").value,
+    vehicle: document.getElementById("itemVehicle").value,
+    dailyRate: parseFloat(document.getElementById("itemDailyRate").value)||0,
+    photo: document.getElementById("itemPhoto").value,
+    needsPower,
+    powerWatt: needsPower ? (parseFloat(document.getElementById("itemPowerWatt").value)||0) : 0,
+    powerType: needsPower ? document.getElementById("itemPowerType").value : "",
+    riskAssessment: document.getElementById("itemRiskAssessment").checked,
+    notes: document.getElementById("itemNotes").value,
+    status: "available"
+  };
+  if (!p.inventory) p.inventory = [];
+  if (id) { const idx = p.inventory.findIndex(x=>x.id==id); item.id=+id; p.inventory[idx]=item; }
+  else { item.id=Date.now(); p.inventory.push(item); }
+  saveProjects(); closeModal("itemModal"); renderAll();
+}
+function deleteItemFromModal() {
+  if (!isKeyGrip()) { alert("Nur Key Grip kann löschen."); return; }
+  const id = +document.getElementById("itemId").value;
+  if (!confirm("Löschen?")) return;
+  const p = getCurrentProject(); if (!p) return;
+  p.inventory = (p.inventory||[]).filter(i=>i.id!==id);
+  saveProjects(); closeModal("itemModal"); renderAll();
+}
+
+function renderPeople() {
+  const p = getCurrentProject(); if (!p) return;
+  document.getElementById("peopleList").innerHTML = (p.people||[]).map(person => `
+    <div class="card p-6 border-l-4 border-emerald-500">
+      <div class="flex justify-between">
+        <div>
+          <div class="font-bold">${person.name}</div>
+          <div class="text-emerald-400 text-sm">${person.role||""}</div>
+          ${person.license?`<div class="text-xs text-emerald-400 mt-1">FS ${person.licenseClass||""}</div>`:""}
+          ${person.pickup?`<div class="text-xs text-amber-400">Abholung: ${person.pickup}</div>`:""}
+        </div>
+        ${canEdit()?`<button onclick="editPerson(${person.id})" class="text-blue-400"><i class="fas fa-edit"></i></button>`:""}
+      </div>
+    </div>`).join("") || "<p class='text-slate-400'>Keine Personen</p>";
+}
+function showPersonModal() {
+  if (!canEdit()) { alert("Keine Berechtigung."); return; }
+  document.getElementById("personId").value="";
+  document.querySelector("#personModal form").reset();
+  document.getElementById("deletePersonBtn").classList.add("hidden");
+  openModal("personModal");
+}
+function editPerson(id) {
+  if (!canEdit()) return;
+  const p = getCurrentProject(); if (!p) return;
+  const person = (p.people||[]).find(x=>x.id===id); if(!person) return;
+  document.getElementById("personId").value=id;
+  document.getElementById("personName").value=person.name;
+  document.getElementById("personRole").value=person.role||"";
+  document.getElementById("personPhone").value=person.phone||"";
+  document.getElementById("personAddress").value=person.address||"";
+  document.getElementById("personLicense").checked=!!person.license;
+  document.getElementById("personLicenseClass").value=person.licenseClass||"";
+  document.getElementById("personPickup").value=person.pickup||"";
+  document.getElementById("personNotes").value=person.notes||"";
+  document.getElementById("deletePersonBtn").classList.remove("hidden");
+  openModal("personModal");
+}
+function savePerson(e) {
+  e.preventDefault();
+  if (!canEdit()) return;
+  const p = getCurrentProject(); if (!p) return;
+  const id = document.getElementById("personId").value;
+  const person = {
+    name: document.getElementById("personName").value,
+    role: document.getElementById("personRole").value,
+    phone: document.getElementById("personPhone").value,
+    address: document.getElementById("personAddress").value,
+    license: document.getElementById("personLicense").checked,
+    licenseClass: document.getElementById("personLicenseClass").value,
+    pickup: document.getElementById("personPickup").value,
+    notes: document.getElementById("personNotes").value
+  };
+  if (!p.people) p.people = [];
+  if (id) { const idx=p.people.findIndex(x=>x.id==id); person.id=+id; p.people[idx]=person; }
+  else { person.id=Date.now(); p.people.push(person); }
+  saveProjects(); closeModal("personModal"); renderAll();
+}
+function deletePersonFromModal() {
+  if (!isKeyGrip()) { alert("Nur Key Grip kann löschen."); return; }
+  const id = +document.getElementById("personId").value;
+  if (!confirm("Löschen?")) return;
+  const p = getCurrentProject(); if (!p) return;
+  p.people = (p.people||[]).filter(x=>x.id!==id);
+  saveProjects(); closeModal("personModal"); renderAll();
+}
+
+function renderRigs() {
+  const p = getCurrentProject(); if (!p) return;
+  document.getElementById("rigsList").innerHTML = (p.rigs||[]).map(r => {
+    const items = (r.items||[]).map(iid=>(p.inventory||[]).find(i=>i.id===iid)?.name||"?").join(", ");
+    const weight = (r.items||[]).reduce((s,iid) => { const it=(p.inventory||[]).find(i=>i.id===iid); return s + ((it?.weight||0)*(it?.qty||1)); },0);
+    const resp = r.responsibleId ? ((p.people||[]).find(x=>x.id===r.responsibleId)?.name||"–") : "–";
+    return `<div class="card p-6 border-l-4 border-purple-500">
+      <div class="flex justify-between">
+        <div class="font-bold text-lg">${r.name}</div>
+        ${canEdit()?`<button onclick="editRig(${r.id})" class="text-blue-400"><i class="fas fa-edit"></i></button>`:""}
+      </div>
+      <div class="text-sm mt-2">Scene: ${r.scene||"–"} · Wann: ${r.when||"–"} · Zuständig: ${resp}</div>
+      <div class="text-sm mt-1">${r.riskAssessment?"GB ✓":"GB fehlt"} · Aufbau ${r.setupTime||"–"} min · ${weight.toFixed(0)} kg</div>
+      <div class="text-sm mt-2">Items: ${items||"–"}</div>
+    </div>`;
+  }).join("") || "<p class='text-slate-400'>Keine Rigs</p>";
+}
+function showRigModal() {
+  if (!canEdit()) { alert("Keine Berechtigung."); return; }
+  document.getElementById("rigId").value="";
+  document.getElementById("rigName").value="";
+  document.getElementById("rigNotes").value="";
+  document.getElementById("rigScene").value="";
+  document.getElementById("rigWhen").value="";
+  document.getElementById("rigPriority").value="medium";
+  document.getElementById("rigSetupTime").value="";
+  document.getElementById("rigRiskAssessment").checked=false;
+  document.getElementById("rigPlan").value="";
+  document.getElementById("deleteRigBtn").classList.add("hidden");
+  populateResponsible();
+  populateRigSelector([]);
+  openModal("rigModal");
+}
+function editRig(id) {
+  if (!canEdit()) return;
+  const p = getCurrentProject(); if (!p) return;
+  const r = (p.rigs||[]).find(x=>x.id===id); if(!r) return;
+  document.getElementById("rigId").value=id;
+  document.getElementById("rigName").value=r.name;
+  document.getElementById("rigNotes").value=r.notes||"";
+  document.getElementById("rigScene").value=r.scene||"";
+  document.getElementById("rigWhen").value=r.when||"";
+  document.getElementById("rigPriority").value=r.priority||"medium";
+  document.getElementById("rigSetupTime").value=r.setupTime||"";
+  document.getElementById("rigRiskAssessment").checked=!!r.riskAssessment;
+  document.getElementById("rigPlan").value=r.plan||"";
+  document.getElementById("deleteRigBtn").classList.remove("hidden");
+  populateResponsible(r.responsibleId);
+  populateRigSelector(r.items||[]);
+  openModal("rigModal");
+}
+function populateResponsible(selected="") {
+  const p = getCurrentProject(); if (!p) return;
+  document.getElementById("rigResponsible").innerHTML = `<option value="">Zuständig</option>` + (p.people||[]).map(person=>`<option value="${person.id}" ${selected==person.id?"selected":""}>${person.name}</option>`).join("");
+}
+function populateRigSelector(selected=[]) {
+  const p = getCurrentProject(); if (!p) return;
+  document.getElementById("rigItemSelector").innerHTML = (p.inventory||[]).map(i=>`
+    <label class="flex items-center gap-2 text-sm"><input type="checkbox" value="${i.id}" ${selected.includes(i.id)?"checked":""}> ${i.name}</label>`).join("");
+}
+function saveRig(e) {
+  e.preventDefault();
+  if (!canEdit()) return;
+  const p = getCurrentProject(); if (!p) return;
+  const id = document.getElementById("rigId").value;
+  const selected = Array.from(document.querySelectorAll("#rigItemSelector input:checked")).map(cb=>+cb.value);
+  const r = {
+    name: document.getElementById("rigName").value,
+    notes: document.getElementById("rigNotes").value,
+    scene: document.getElementById("rigScene").value,
+    when: document.getElementById("rigWhen").value,
+    responsibleId: document.getElementById("rigResponsible").value ? +document.getElementById("rigResponsible").value : null,
+    priority: document.getElementById("rigPriority").value,
+    setupTime: document.getElementById("rigSetupTime").value,
+    riskAssessment: document.getElementById("rigRiskAssessment").checked,
+    plan: document.getElementById("rigPlan").value,
+    items: selected
+  };
+  if (!p.rigs) p.rigs = [];
+  if (id) { const idx=p.rigs.findIndex(x=>x.id==id); r.id=+id; p.rigs[idx]=r; }
+  else { r.id=Date.now(); p.rigs.push(r); }
+  saveProjects(); closeModal("rigModal"); renderAll();
+}
+function deleteRigFromModal() {
+  if (!isKeyGrip()) { alert("Nur Key Grip kann löschen."); return; }
+  const id = +document.getElementById("rigId").value;
+  if (!confirm("Löschen?")) return;
+  const p = getCurrentProject(); if (!p) return;
+  p.rigs = (p.rigs||[]).filter(r=>r.id!==id);
+  saveProjects(); closeModal("rigModal"); renderAll();
+}
+function saveAsTemplate() {
+  const name = document.getElementById("rigName").value;
+  if (!name) { alert("Bitte zuerst einen Namen eingeben."); return; }
+  const selected = Array.from(document.querySelectorAll("#rigItemSelector input:checked")).map(cb=>+cb.value);
+  rigTemplates.push({
+    id: Date.now(),
+    name,
+    notes: document.getElementById("rigNotes").value,
+    items: selected
+  });
+  saveTemplates();
+  alert("Vorlage gespeichert.");
+}
+function showRigTemplates() {
+  document.getElementById("rigTemplateList").innerHTML = rigTemplates.map(t => `
+    <div class="flex justify-between items-center bg-slate-800 p-3 rounded">
+      <div>${t.name}</div>
+      <button onclick="loadTemplate(${t.id})" class="text-purple-400 text-sm">Laden</button>
+    </div>`).join("") || "<div class='text-slate-400'>Keine Vorlagen</div>";
+  openModal("rigTemplateModal");
+}
+function loadTemplate(id) {
+  const t = rigTemplates.find(x=>x.id===id); if (!t) return;
+  showRigModal();
+  setTimeout(() => {
+    document.getElementById("rigName").value = t.name + " (Kopie)";
+    document.getElementById("rigNotes").value = t.notes||"";
+    populateRigSelector(t.items||[]);
+  }, 100);
+  closeModal("rigTemplateModal");
+}
+
+function renderDays() {
+  const p = getCurrentProject(); if (!p) return;
+  document.getElementById("daysList").innerHTML = (p.days||[]).map(d => {
+    const crew = (d.crew||[]).map(cid=>(p.people||[]).find(x=>x.id===cid)?.name||"?").join(", ");
+    const timeline = (d.timeline||[]).map(t => {
+      const rig = t.rigId ? ((p.rigs||[]).find(r=>r.id===t.rigId)?.name||"") : "";
+      return `<div class="timeline-item"><strong>${t.time||""}</strong> · ${t.type||""} · ${t.desc||""} ${rig?`<span class="text-purple-400">(${rig})</span>`:""}</div>`;
+    }).join("");
+    const mapsLink = d.location ? `<a href="https://maps.google.com/?q=${encodeURIComponent(d.location)}" target="_blank" class="text-blue-400 text-sm">Maps</a>` : "";
+
+    // Rigs die zu diesem Tag passen (über "Wann benötigt")
+    const linkedRigs = (p.rigs||[]).filter(r => {
+      if (!r.when) return false;
+      const when = r.when.toLowerCase();
+      const dateMatch = d.date && when.includes(d.date);
+      const nameMatch = d.name && when.toLowerCase().includes(d.name.toLowerCase());
+      return dateMatch || nameMatch;
+    });
+    const rigsHtml = linkedRigs.length
+      ? linkedRigs.map(r => `<div class="text-sm text-purple-300">• ${r.name} ${r.scene ? "("+r.scene+")" : ""}</div>`).join("")
+      : "<div class='text-slate-500 text-sm'>Keine Rigs für diesen Tag hinterlegt</div>";
+
+    return `<div class="card p-6 border-l-4 border-amber-500">
+      <div class="flex justify-between"><div class="font-bold text-lg">${d.name}</div>${canEdit()?`<button onclick="editDay(${d.id})" class="text-blue-400"><i class="fas fa-edit"></i></button>`:""}</div>
+      <div class="text-sm text-slate-400">${d.date||""} · Call ${d.call||"–"} ${mapsLink}</div>
+      ${d.weather?`<div class="text-sm text-sky-400 mt-1">Wetter: ${d.weather}</div>`:""}
+      ${d.travel?`<div class="text-sm text-slate-400 mt-1">Anfahrt: ${d.travel}</div>`:""}
+      <div class="text-sm mt-2">Stab: ${crew||"–"}</div>
+      <div class="mt-4">
+        <div class="text-sm font-medium text-purple-400 mb-1">Benötigte Rigs (aus „Wann benötigt“)</div>
+        ${rigsHtml}
+      </div>
+      <div class="mt-3">${timeline||"<div class='text-slate-400'>Kein Ablauf</div>"}</div>
+    </div>`;
+  }).join("") || "<p class='text-slate-400'>Keine Tage</p>";
+}
+function showDayModal() {
+  if (!canEdit()) { alert("Keine Berechtigung."); return; }
+  document.getElementById("dayId").value="";
+  document.querySelector("#dayModal form").reset();
+  document.getElementById("dayVehicles").innerHTML="";
+  document.getElementById("dayTimeline").innerHTML="";
+  document.getElementById("deleteDayBtn").classList.add("hidden");
+  populateCrewSelector([]);
+  addVehicleField();
+  addTimelineItem();
+  openModal("dayModal");
+}
+function editDay(id) {
+  if (!canEdit()) return;
+  const p = getCurrentProject(); if (!p) return;
+  const d = (p.days||[]).find(x=>x.id===id); if(!d) return;
+  document.getElementById("dayId").value=id;
+  document.getElementById("dayName").value=d.name;
+  document.getElementById("dayDate").value=d.date||"";
+  document.getElementById("dayLocation").value=d.location||"";
+  document.getElementById("dayCall").value=d.call||"";
+  document.getElementById("dayAnfahrtTime").value=d.anfahrtTime||"";
+  document.getElementById("dayTravel").value=d.travel||"";
+  document.getElementById("dayWeather").value=d.weather||"";
+  document.getElementById("dayNotes").value=d.notes||"";
+  document.getElementById("deleteDayBtn").classList.remove("hidden");
+  populateCrewSelector(d.crew||[]);
+  document.getElementById("dayVehicles").innerHTML="";
+  (d.vehicles||[]).forEach(v=>addVehicleField(v));
+  if (!(d.vehicles||[]).length) addVehicleField();
+  document.getElementById("dayTimeline").innerHTML="";
+  (d.timeline||[]).forEach(t=>addTimelineItem(t));
+  if (!(d.timeline||[]).length) addTimelineItem();
+  openModal("dayModal");
+}
+function populateCrewSelector(selected=[]) {
+  const p = getCurrentProject(); if (!p) return;
+  document.getElementById("dayCrewSelector").innerHTML = (p.people||[]).map(person=>`
+    <label class="flex items-center gap-2 text-sm"><input type="checkbox" value="${person.id}" ${selected.includes(person.id)?"checked":""}> ${person.name}</label>`).join("");
+}
+function addVehicleField(v={}) {
+  const p = getCurrentProject();
+  const div = document.createElement("div");
+  div.className = "grid grid-cols-3 gap-2";
+  const opts = `<option value="">– wählen –</option>` + ((p&&p.vehicles)?p.vehicles.map(veh=>`<option value="${veh.name}" ${v.name===veh.name?"selected":""}>${veh.name}</option>`).join(""):"");
+  div.innerHTML = `<select class="bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-sm">${opts}</select>
+    <input placeholder="Fahrer" value="${v.driver||""}" class="bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-sm">
+    <input placeholder="Mitfahrer" value="${v.passengers||""}" class="bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-sm">`;
+  document.getElementById("dayVehicles").appendChild(div);
+}
+function addTimelineItem(t={}) {
+  const p = getCurrentProject(); if (!p) return;
+  const div = document.createElement("div");
+  div.className = "grid grid-cols-12 gap-2 items-center";
+  const rigOpts = `<option value="">– Rig –</option>` + (p.rigs||[]).map(r=>`<option value="${r.id}" ${t.rigId==r.id?"selected":""}>${r.name}</option>`).join("");
+  div.innerHTML = `
+    <input type="time" value="${t.time||""}" class="col-span-2 bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-sm">
+    <select class="col-span-2 bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-sm">
+      <option ${t.type==="Setup"?"selected":""}>Setup</option>
+      <option ${t.type==="Shot"?"selected":""}>Shot</option>
+      <option ${t.type==="Pause"?"selected":""}>Pause</option>
+      <option ${t.type==="Anfahrt"?"selected":""}>Anfahrt</option>
+      <option ${t.type==="Wrap"?"selected":""}>Wrap</option>
+    </select>
+    <input placeholder="Beschreibung" value="${t.desc||""}" class="col-span-4 bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-sm">
+    <input type="number" placeholder="Min" value="${t.minutes||""}" class="col-span-1 bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-sm">
+    <select class="col-span-3 bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-sm">${rigOpts}</select>`;
+  document.getElementById("dayTimeline").appendChild(div);
+}
+function saveDay(e) {
+  e.preventDefault();
+  if (!canEdit()) return;
+  const p = getCurrentProject(); if (!p) return;
+  const id = document.getElementById("dayId").value;
+  const crew = Array.from(document.querySelectorAll("#dayCrewSelector input:checked")).map(cb=>+cb.value);
+  const vehicles = Array.from(document.querySelectorAll("#dayVehicles > div")).map(div => {
+    const sel = div.querySelector("select");
+    const inputs = div.querySelectorAll("input");
+    return { name: sel?sel.value:"", driver: inputs[0].value, passengers: inputs[1].value };
+  }).filter(v=>v.name);
+  const timeline = Array.from(document.querySelectorAll("#dayTimeline > div")).map(div => {
+    const els = div.querySelectorAll("input,select");
+    return { time: els[0].value, type: els[1].value, desc: els[2].value, minutes: els[3].value, rigId: els[4].value?+els[4].value:null };
+  }).filter(t=>t.desc||t.time);
+  const day = {
+    name: document.getElementById("dayName").value,
+    date: document.getElementById("dayDate").value,
+    location: document.getElementById("dayLocation").value,
+    call: document.getElementById("dayCall").value,
+    anfahrtTime: document.getElementById("dayAnfahrtTime").value,
+    travel: document.getElementById("dayTravel").value,
+    weather: document.getElementById("dayWeather").value,
+    notes: document.getElementById("dayNotes").value,
+    crew, vehicles, timeline
+  };
+  if (!p.days) p.days = [];
+  if (id) { const idx=p.days.findIndex(x=>x.id==id); day.id=+id; p.days[idx]=day; }
+  else { day.id=Date.now(); p.days.push(day); }
+  saveProjects(); closeModal("dayModal"); renderAll();
+}
+function deleteDayFromModal() {
+  if (!isKeyGrip()) { alert("Nur Key Grip kann löschen."); return; }
+  const id = +document.getElementById("dayId").value;
+  if (!confirm("Löschen?")) return;
+  const p = getCurrentProject(); if (!p) return;
+  p.days = (p.days||[]).filter(d=>d.id!==id);
+  saveProjects(); closeModal("dayModal"); renderAll();
+}
+
+function renderVehicles() {
+  const p = getCurrentProject(); if (!p) return;
+  document.getElementById("vehiclesList").innerHTML = (p.vehicles||[]).map(v => {
+    const loaded = (p.inventory||[]).filter(i => i.vehicle === v.name);
+    const totalWeight = loaded.reduce((s,i) => s + ((i.weight||0)*(i.qty||1)), 0);
+    const list = loaded.map(i => `<div class="text-sm py-1 border-b border-slate-700">${i.name} <span class="text-slate-400">${i.qty||1}× · ${i.weight||0} kg</span></div>`).join("") || "<div class='text-slate-400 text-sm'>Leer</div>";
+    return `<div class="card p-5">
+      <div class="truck-visual mb-4" onclick="toggleVehicleContent(${v.id})">
+        <div class="absolute top-3 left-4 text-white font-bold">${v.name}</div>
+        <div class="absolute top-3 right-4 text-xs text-slate-300">${loaded.length} Pos. · ${totalWeight.toFixed(0)} kg</div>
+        <div class="absolute bottom-4 left-0 right-0 text-center text-slate-300 text-sm">Klicken für Inhalt</div>
+      </div>
+      <div id="veh-content-${v.id}" class="hidden mb-4 bg-slate-800/50 rounded-lg p-3 max-h-48 overflow-y-auto">${list}</div>
+      <div class="flex justify-between">
+        <div>
+          <div class="font-bold">${v.name}</div>
+          <div class="text-sm text-slate-400">${v.type||""} · ${v.driver||"–"}</div>
+        </div>
+        <div>
+          ${canEdit()?`<button onclick="editVehicle(${v.id})" class="text-blue-400 mr-2"><i class="fas fa-edit"></i></button>`:""}
+          <button onclick="exportVehiclePacklist(${v.id})" class="text-emerald-400 mr-2 text-sm">Packliste</button>
+          ${isKeyGrip()?`<button onclick="deleteVehicle(${v.id})" class="text-red-400"><i class="fas fa-trash"></i></button>`:""}
+        </div>
+      </div>
+    </div>`;
+  }).join("") || "<p class='text-slate-400'>Keine Fahrzeuge</p>";
+}
+function toggleVehicleContent(id) {
+  const el = document.getElementById("veh-content-"+id);
+  if (el) el.classList.toggle("hidden");
+}
+function showVehicleModal() {
+  if (!canEdit()) { alert("Keine Berechtigung."); return; }
+  document.getElementById("vehicleId").value="";
+  document.querySelector("#vehicleModal form").reset();
+  document.getElementById("deleteVehicleBtn").classList.add("hidden");
+  openModal("vehicleModal");
+}
+function editVehicle(id) {
+  if (!canEdit()) return;
+  const p = getCurrentProject(); if (!p) return;
+  const v = (p.vehicles||[]).find(x=>x.id===id); if(!v) return;
+  document.getElementById("vehicleId").value=id;
+  document.getElementById("vehicleName").value=v.name||"";
+  document.getElementById("vehicleType").value=v.type||"";
+  document.getElementById("vehicleDriver").value=v.driver||"";
+  document.getElementById("vehicleNotes").value=v.notes||"";
+  document.getElementById("deleteVehicleBtn").classList.remove("hidden");
+  openModal("vehicleModal");
+}
+function saveVehicle(e) {
+  e.preventDefault();
+  if (!canEdit()) return;
+  const p = getCurrentProject(); if (!p) return;
+  const id = document.getElementById("vehicleId").value;
+  const data = {
+    name: document.getElementById("vehicleName").value,
+    type: document.getElementById("vehicleType").value,
+    driver: document.getElementById("vehicleDriver").value,
+    notes: document.getElementById("vehicleNotes").value
+  };
+  if (!p.vehicles) p.vehicles = [];
+  if (id) {
+    const idx = p.vehicles.findIndex(v=>v.id==id);
+    const old = p.vehicles[idx].name;
+    p.vehicles[idx] = {...p.vehicles[idx], ...data};
+    if (old !== data.name) (p.inventory||[]).forEach(i=>{ if(i.vehicle===old) i.vehicle=data.name; });
+  } else p.vehicles.push({id:Date.now(), ...data});
+  saveProjects(); closeModal("vehicleModal"); renderAll();
+}
+function deleteVehicle(id) {
+  if (!isKeyGrip()) { alert("Nur Key Grip kann löschen."); return; }
+  if (!confirm("Löschen?")) return;
+  const p = getCurrentProject(); if (!p) return;
+  p.vehicles = (p.vehicles||[]).filter(v=>v.id!==id);
+  saveProjects(); renderAll();
+}
+function deleteVehicleFromModal() {
+  const id = +document.getElementById("vehicleId").value;
+  deleteVehicle(id);
+  closeModal("vehicleModal");
+}
+function exportVehiclePacklist(id) {
+  const p = getCurrentProject(); if (!p) return;
+  const v = (p.vehicles||[]).find(x => x.id === id); if (!v) return;
+  const items = (p.inventory||[]).filter(i => i.vehicle === v.name);
+  let csv = `Packliste ${v.name}\nName;Menge;Gewicht;Kategorie\n`;
+  items.forEach(i => csv += `"${i.name}";${i.qty||1};${i.weight||0};"${i.category||""}"\n`);
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8;"}));
+  a.download = `${v.name}-packliste.csv`; a.click();
+}
+
+function showCategoryModal() { renderCategoryList(); openModal("categoryModal"); }
+function renderCategoryList() {
+  document.getElementById("categoryList").innerHTML = categories.map((c,i)=>`
+    <div class="flex items-center gap-2 bg-slate-800 p-2 rounded">
+      <div class="w-5 h-5 rounded" style="background:${c.color}"></div>
+      <input value="${c.name}" onchange="categories[${i}].name=this.value;saveCategories();populateCategorySelect();" class="flex-1 bg-transparent text-sm">
+      <input type="color" value="${c.color}" onchange="categories[${i}].color=this.value;saveCategories();" class="w-8 h-8">
+      ${isKeyGrip()?`<button onclick="categories.splice(${i},1);saveCategories();renderCategoryList();populateCategorySelect();" class="text-red-400">×</button>`:""}
+    </div>`).join("");
+}
+function addCategory() {
+  if (!canEdit()) return;
+  const name = document.getElementById("newCategoryName").value.trim();
+  if (!name) return;
+  categories.push({name, color: document.getElementById("newCategoryColor").value});
+  saveCategories();
+  document.getElementById("newCategoryName").value="";
+  renderCategoryList();
+  populateCategorySelect();
+}
+
+function showDamageModal() {
+  const p = getCurrentProject(); if (!p) return;
+  if (!p.damages) p.damages = [];
+  document.getElementById("damageList").innerHTML = p.damages.map(d => `
+    <div class="bg-slate-800 p-3 rounded text-sm">
+      <div class="font-medium">${d.item}</div>
+      <div class="text-slate-400">${d.date||""} · ${d.desc||""}</div>
+    </div>`).join("") || "<div class='text-slate-400'>Keine Meldungen</div>";
+  openModal("damageModal");
+}
+function addDamage() {
+  if (!canEdit()) return;
+  const p = getCurrentProject(); if (!p) return;
+  if (!p.damages) p.damages = [];
+  p.damages.push({
+    item: document.getElementById("damageItem").value,
+    desc: document.getElementById("damageDesc").value,
+    date: document.getElementById("damageDate").value
+  });
+  saveProjects();
+  document.getElementById("damageItem").value = "";
+  document.getElementById("damageDesc").value = "";
+  document.getElementById("damageDate").value = "";
+  showDamageModal();
+}
+
+function showLogin() { openModal("loginModal"); }
+function doLogin() {
+  currentUser = document.getElementById("loginName").value.trim() || "User";
+  currentRole = document.getElementById("loginRole").value;
+  localStorage.setItem("gripUser", currentUser);
+  localStorage.setItem("gripRole", currentRole);
+  document.getElementById("userNameDisplay").textContent = currentUser;
+  document.getElementById("userRoleDisplay").textContent = currentRole === "keygrip" ? "Key Grip" : currentRole === "grip" ? "Grip" : "Ansicht";
+
+  // Person zum aktuellen Projekt hinzufügen, falls noch nicht vorhanden
+  const p = getCurrentProject();
+  if (p && currentUser && currentUser !== "User") {
+    if (!p.people) p.people = [];
+    const exists = p.people.some(person => person.name.toLowerCase() === currentUser.toLowerCase());
+    if (!exists) {
+      p.people.push({
+        id: Date.now(),
+        name: currentUser,
+        role: currentRole === "keygrip" ? "Key Grip" : currentRole === "grip" ? "Grip" : "Crew",
+        notes: "Automatisch über Login hinzugefügt"
+      });
+      saveProjects();
+    }
+  }
+
+  closeModal("loginModal");
+  if (currentProjectId) renderAll();
+}
+function toggleNote() { document.getElementById("notePanel").classList.toggle("hidden"); }
+function saveProjectNote() {
+  const p = getCurrentProject(); if (!p) return;
+  p.quickNote = document.getElementById("projectNoteField").value;
+  saveProjects();
+}
+
+function exportCurrentProject() {
+  const p = getCurrentProject(); if (!p) return;
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(p, null, 2)],{type:"application/json"}));
+  a.download = p.name + ".json"; a.click();
+}
+function importProject() {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = ".json";
+  input.onchange = e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        data.id = Date.now();
+        projects.push(data);
+        saveProjects();
+        renderProjectList();
+        alert("Projekt importiert.");
+      } catch(err) { alert("Ungültige Datei."); }
+    };
+    reader.readAsText(file);
+  };
+  input.click();
+}
+
+function exportCSV(type) {
+  const p = getCurrentProject(); if (!p) return;
+  let csv = "";
+  let name = p.name;
+  if (type === "inventory") {
+    csv = "Name;Kategorie;Menge;Gewicht;Standort;Fahrzeug;Strom;GB\n";
+    (p.inventory||[]).forEach(i => csv += `"${i.name}";"${i.category||""}";${i.qty||1};${i.weight||0};"${i.currentLocation||""}";"${i.vehicle||""}";${i.needsPower?(i.powerWatt||0)+"W":"nein"};${i.riskAssessment?"Ja":"Nein"}\n`);
+    name += "-inventar";
+  } else if (type === "people") {
+    csv = "Name;Rolle;Telefon;Abholung\n";
+    (p.people||[]).forEach(i => csv += `"${i.name}";"${i.role||""}";"${i.phone||""}";"${i.pickup||""}"\n`);
+    name += "-personen";
+  } else if (type === "rigs") {
+    csv = "Name;Scene;Wann;GB\n";
+    (p.rigs||[]).forEach(i => csv += `"${i.name}";"${i.scene||""}";"${i.when||""}";${i.riskAssessment?"Ja":"Nein"}\n`);
+    name += "-rigs";
+  } else if (type === "days") {
+    csv = "Name;Datum;Call;Wetter\n";
+    (p.days||[]).forEach(i => csv += `"${i.name}";"${i.date||""}";"${i.call||""}";"${i.weather||""}"\n`);
+    name += "-tage";
+  } else if (type === "vehicles") {
+    csv = "Name;Typ;Fahrer\n";
+    (p.vehicles||[]).forEach(i => csv += `"${i.name}";"${i.type||""}";"${i.driver||""}"\n`);
+    name += "-fahrzeuge";
+  }
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8;"}));
+  a.download = name + ".csv"; a.click();
+}
+
+function openModal(id) { document.getElementById(id).classList.remove("hidden"); document.getElementById(id).classList.add("flex"); }
+function closeModal(id) { document.getElementById(id).classList.add("hidden"); document.getElementById(id).classList.remove("flex"); }
+
+init();
+</script>
+</body>
+</html>
