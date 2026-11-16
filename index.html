@@ -479,7 +479,33 @@ body { background: #0f172a; color: #e2e8f0; }
   </div>
 </div>
 
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script>
+// === FIREBASE CONFIG (hier deine Werte eintragen) ===
+const firebaseConfig = {
+  apiKey: "AIzaSyAP7w6wBuB2-00XJXpi-OxljjGNEv3ll10",
+  authDomain: "gripsetmanagerpro.firebaseapp.com",
+  projectId: "gripsetmanagerpro",
+  storageBucket: "gripsetmanagerpro.firebasestorage.app",
+  messagingSenderId: "963014462386",
+  appId: "1:963014462386:web:7ee05aa6c3073f466132ab",
+  measurementId: "G-W24SZFBZQ3"
+};
+// ===================================================
+
+let db = null;
+let useFirebase = false;
+
+try {
+  if (firebaseConfig.apiKey && firebaseConfig.apiKey !== "DEIN_API_KEY") {
+    firebase.initializeApp(firebaseConfig);
+    db = firebase.firestore();
+    useFirebase = true;
+    console.log("Firebase aktiv");
+  }
+} catch(e) { console.warn("Firebase nicht konfiguriert, nutze localStorage"); }
+
 let projects = JSON.parse(localStorage.getItem("gripProjects")) || [];
 let categories = JSON.parse(localStorage.getItem("gripCategories")) || [
   {name:"C-Stands", color:"#06b6d4"}, {name:"Combo Stands", color:"#0891b2"},
@@ -495,14 +521,35 @@ let currentUser = localStorage.getItem("gripUser") || "";
 let currentRole = localStorage.getItem("gripRole") || "keygrip";
 
 function getCurrentProject() { return projects.find(p => p.id === currentProjectId); }
-function saveProjects() { localStorage.setItem("gripProjects", JSON.stringify(projects)); }
+async function saveProjects() {
+  if (useFirebase && db) {
+    try {
+      await db.collection("projects").doc("main").set({ projects, updated: new Date() });
+    } catch(e) { console.error("Firebase save error", e); }
+  }
+  localStorage.setItem("gripProjects", JSON.stringify(projects));
+}
+
+async function loadProjects() {
+  if (useFirebase && db) {
+    try {
+      const doc = await db.collection("projects").doc("main").get();
+      if (doc.exists && doc.data().projects) {
+        projects = doc.data().projects;
+        return;
+      }
+    } catch(e) { console.warn("Firebase load failed, fallback local"); }
+  }
+  projects = JSON.parse(localStorage.getItem("gripProjects")) || [];
+}
 function saveCategories() { localStorage.setItem("gripCategories", JSON.stringify(categories)); }
 function saveTemplates() { localStorage.setItem("gripRigTemplates", JSON.stringify(rigTemplates)); }
 
 function isKeyGrip() { return currentRole === "keygrip"; }
 function canEdit() { return currentRole === "keygrip" || currentRole === "grip"; }
 
-function init() {
+async function init() {
+  await loadProjects();
   if (currentUser) {
     document.getElementById("userNameDisplay").textContent = currentUser;
     document.getElementById("userRoleDisplay").textContent = currentRole === "keygrip" ? "Key Grip" : currentRole === "grip" ? "Grip" : "Ansicht";
