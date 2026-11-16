@@ -20,6 +20,16 @@ body { background: #0f172a; color: #e2e8f0; }
 </style>
 </head>
 <body class="min-h-screen pb-16">
+<div id="passwordOverlay" class="fixed inset-0 bg-slate-900 z-50 flex items-center justify-center">
+  <div class="card p-8 max-w-sm w-full mx-4">
+    <h2 class="text-2xl font-bold mb-4 text-center">GripSet Manager PRO</h2>
+    <p class="text-slate-400 text-sm mb-6 text-center">Passwort erforderlich</p>
+    <input id="passwordInput" type="password" placeholder="Passwort eingeben" class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-3 mb-4" onkeypress="if(event.key==='Enter') checkPassword()">
+    <button onclick="checkPassword()" class="w-full bg-blue-600 py-3 rounded-lg font-medium">Zugang</button>
+    <p id="passwordError" class="text-red-400 text-sm mt-3 hidden text-center">Falsches Passwort</p>
+  </div>
+</div>
+<div id="appContent" class="hidden">
 <div class="container mx-auto px-4 py-8 max-w-7xl">
   <header class="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
     <div>
@@ -1415,7 +1425,20 @@ function exportCSV(type) {
 function openModal(id) { document.getElementById(id).classList.remove("hidden"); document.getElementById(id).classList.add("flex"); }
 function closeModal(id) { document.getElementById(id).classList.add("hidden"); document.getElementById(id).classList.remove("flex"); }
 
+function checkPassword() {
+  const input = document.getElementById("passwordInput").value;
+  if (input === "(B0LP[c7K7N8c!O") {
+    document.getElementById("passwordOverlay").classList.add("hidden");
+    document.getElementById("appContent").classList.remove("hidden");
+  } else {
+    document.getElementById("passwordError").classList.remove("hidden");
+    setTimeout(() => document.getElementById("passwordError").classList.add("hidden"), 2000);
+  }
+}
+
 init();
 </script>
+</div>
+</div>
 </body>
 </html>
